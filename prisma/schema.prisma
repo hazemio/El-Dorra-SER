@@ -1,0 +1,734 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RoleName {
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  EMPLOYEE
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum AccountSubtype {
+  CASH
+  BANK
+  ACCOUNTS_RECEIVABLE
+  ACCOUNTS_PAYABLE
+  TICKET_REVENUE
+  SERVICE_FEE
+  OPERATING_EXPENSE
+  GENERAL
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum TicketStatus {
+  ISSUED
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum CurrencyCode {
+  EGP
+  USD
+  EUR
+  SAR
+  AED
+}
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  username            String?   @unique
+  passwordHash        String    @map("password_hash")
+  fullName            String    @map("full_name")
+  phone               String?
+  isLocked            Boolean   @default(false) @map("is_locked")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockUntil           DateTime? @map("lock_until")
+  isActive            Boolean   @default(true) @map("is_active")
+  branchId            String?   @map("branch_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  branch          Branch?          @relation(fields: [branchId], references: [id])
+  roles           UserRole[]
+  permissions     UserPermission[]
+  refreshTokens   RefreshToken[]
+  loginHistories  LoginHistory[]
+  ticketsIssued   Ticket[]         @relation("TicketIssuer")
+  expensesCreated Expense[]        @relation("ExpenseCreator")
+  journalEntries  JournalEntry[]   @relation("JournalCreator")
+  bookingsCreated Booking[]        @relation("BookingCreator")
+  bookingPayments      BookingPayment[]
+  supplierTransactions SupplierTransaction[]
+  supplierPaymentsCreated SupplierPayment[] @relation("SupplierPaymentCreator")
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        RoleName @unique
+  description String?
+  isSystem    Boolean  @default(true) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  category    String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  userId       String @map("user_id")
+  permissionId String @map("permission_id")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model LoginHistory {
+  id            String   @id @default(uuid())
+  userId        String?  @map("user_id")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  isSuccess     Boolean  @map("is_success")
+  failureReason String?  @map("failure_reason")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("login_histories")
+}
+
+model Branch {
+  id        String    @id @default(uuid())
+  nameAr    String    @map("name_ar")
+  nameEn    String    @map("name_en")
+  code      String    @unique
+  phone     String?
+  address   String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  users     User[]
+  tickets   Ticket[]
+  expenses  Expense[]
+  cashboxes Cashbox[]
+  journals  JournalEntry[]
+  bookings  Booking[]
+
+  @@map("branches")
+}
+
+model Supplier {
+  id            String       @id @default(uuid())
+  companyNameAr String       @map("company_name_ar")
+  companyNameEn String       @map("company_name_en")
+  code          String       @unique
+  contactPerson String?      @map("contact_person")
+  phone         String?
+  email         String?
+  balance       Float        @default(0.0)
+  currency      CurrencyCode @default(EGP)
+  isActive      Boolean      @default(true) @map("is_active")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  deletedAt     DateTime?    @map("deleted_at")
+
+  tickets           Ticket[]
+  expenses          Expense[]
+  refunds           Refund[]
+  visas             Visa[]
+  hotelReservations HotelReservation[]
+  transactions      SupplierTransaction[]
+  supplierPayments  SupplierPayment[]
+
+  @@map("suppliers")
+}
+
+model Customer {
+  id             String    @id @default(uuid())
+  nameAr         String    @map("name_ar")
+  nameEn         String    @map("name_en")
+  passportNumber String?   @unique @map("passport_number")
+  nationalId     String?   @map("national_id")
+  phone          String?
+  email          String?
+  balance        Float     @default(0.0)
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  tickets           Ticket[]
+  refunds           Refund[]
+  visas             Visa[]
+  hotelReservations HotelReservation[]
+  packageTravelers  PackageTraveler[]
+  bookings          Booking[]
+  bookingTravelers  BookingTraveler[]
+
+  @@map("customers")
+}
+
+model Flight {
+  id               String   @id @default(uuid())
+  flightNumber     String   @map("flight_number")
+  airline          String
+  departureAirport String   @map("departure_airport")
+  arrivalAirport   String   @map("arrival_airport")
+  departureTime    DateTime @map("departure_time")
+  arrivalTime      DateTime @map("arrival_time")
+  status           String   @default("SCHEDULED")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tickets Ticket[]
+
+  @@map("flights")
+}
+
+model Ticket {
+  id               String        @id @default(uuid())
+  ticketNumber     String        @unique @map("ticket_number")
+  pnr              String
+  passengerName    String        @map("passenger_name")
+  customerId       String        @map("customer_id")
+  supplierId       String        @map("supplier_id")
+  flightId         String?       @map("flight_id")
+  branchId         String        @map("branch_id")
+  createdById      String        @map("created_by_id")
+  issueDate        DateTime      @default(now()) @map("issue_date")
+  travelDate       DateTime      @map("travel_date")
+  costPrice        Float         @map("cost_price")
+  sellingPrice     Float         @map("selling_price")
+  profit           Float
+  currency         CurrencyCode  @default(EGP)
+  exchangeRate     Float         @default(1.0) @map("exchange_rate")
+  baseCostPrice    Float         @map("base_cost_price")
+  baseSellingPrice Float         @map("base_selling_price")
+  baseProfit       Float         @map("base_profit")
+  status           TicketStatus  @default(ISSUED)
+  paymentStatus    PaymentStatus @default(UNPAID) @map("payment_status")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  deletedAt        DateTime?     @map("deleted_at")
+
+  customer  Customer @relation(fields: [customerId], references: [id])
+  supplier  Supplier @relation(fields: [supplierId], references: [id])
+  flight    Flight?  @relation(fields: [flightId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  createdBy User     @relation("TicketIssuer", fields: [createdById], references: [id])
+  refunds   Refund[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
+
+  @@map("tickets")
+}
+
+model Refund {
+  id            String       @id @default(uuid())
+  refundNumber  String       @unique @map("refund_number")
+  ticketId      String       @map("ticket_id")
+  customerId    String       @map("customer_id")
+  supplierId    String       @map("supplier_id")
+  refundAmount  Float        @map("refund_amount")
+  penaltyAmount Float        @default(0.0) @map("penalty_amount")
+  netRefund     Float        @map("net_refund")
+  status        RefundStatus @default(PENDING)
+  reason        String?
+  requestedById String       @map("requested_by_id")
+  approvedById  String?      @map("approved_by_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  ticket   Ticket   @relation(fields: [ticketId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@map("refunds")
+}
+
+model Expense {
+  id            String       @id @default(uuid())
+  expenseNumber String       @unique @map("expense_number")
+  category      String
+  description   String
+  amount        Float
+  currency      CurrencyCode @default(EGP)
+  exchangeRate  Float        @default(1.0) @map("exchange_rate")
+  baseAmount    Float        @map("base_amount")
+  supplierId    String?      @map("supplier_id")
+  branchId      String       @map("branch_id")
+  createdById   String       @map("created_by_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  supplier  Supplier? @relation(fields: [supplierId], references: [id])
+  branch    Branch    @relation(fields: [branchId], references: [id])
+  createdBy User      @relation("ExpenseCreator", fields: [createdById], references: [id])
+
+  @@map("expenses")
+}
+
+model Account {
+  id        String         @id @default(uuid())
+  code      String         @unique
+  nameAr    String         @map("name_ar")
+  nameEn    String         @map("name_en")
+  type      AccountType
+  subtype   AccountSubtype @default(GENERAL)
+  parentId  String?        @map("parent_id")
+  isHeader  Boolean        @default(false) @map("is_header")
+  balance   Float          @default(0.0)
+  currency  CurrencyCode   @default(EGP)
+  isActive  Boolean        @default(true) @map("is_active")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  parent   Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children Account[]     @relation("AccountHierarchy")
+  lines    JournalLine[]
+  ledger   LedgerEntry[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id              String        @id @default(uuid())
+  entryNumber     String        @unique @map("entry_number")
+  entryDate       DateTime      @default(now()) @map("entry_date")
+  reference       String?
+  description     String
+  status          JournalStatus @default(POSTED)
+  reversedEntryId String?       @unique @map("reversed_entry_id")
+  createdById     String        @map("created_by_id")
+  branchId        String?       @map("branch_id")
+  totalDebit      Float         @map("total_debit")
+  totalCredit     Float         @map("total_credit")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  createdBy User          @relation("JournalCreator", fields: [createdById], references: [id])
+  branch    Branch?       @relation(fields: [branchId], references: [id])
+  reversed  JournalEntry? @relation("JournalReversals", fields: [reversedEntryId], references: [id])
+  original  JournalEntry? @relation("JournalReversals")
+  lines     JournalLine[]
+  ledger    LedgerEntry[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String   @id @default(uuid())
+  journalEntryId String   @map("journal_entry_id")
+  accountId      String   @map("account_id")
+  debit          Float    @default(0.0)
+  credit         Float    @default(0.0)
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@map("journal_lines")
+}
+
+model LedgerEntry {
+  id             String   @id @default(uuid())
+  accountId      String   @map("account_id")
+  journalEntryId String   @map("journal_entry_id")
+  entryDate      DateTime @map("entry_date")
+  debit          Float
+  credit         Float
+  runningBalance Float    @map("running_balance")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  account      Account      @relation(fields: [accountId], references: [id])
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@map("ledger_entries")
+}
+
+model Cashbox {
+  id        String       @id @default(uuid())
+  nameAr    String       @map("name_ar")
+  nameEn    String       @map("name_en")
+  branchId  String       @map("branch_id")
+  balance   Float        @default(0.0)
+  currency  CurrencyCode @default(EGP)
+  isActive  Boolean      @default(true) @map("is_active")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  deposits Deposit[]
+
+  @@map("cashboxes")
+}
+
+model Deposit {
+  id            String       @id @default(uuid())
+  depositNumber String       @unique @map("deposit_number")
+  cashboxId     String       @map("cashbox_id")
+  amount        Float
+  currency      CurrencyCode @default(EGP)
+  exchangeRate  Float        @default(1.0) @map("exchange_rate")
+  baseAmount    Float        @map("base_amount")
+  source        String
+  description   String?
+  createdById   String       @map("created_by_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  cashbox Cashbox @relation(fields: [cashboxId], references: [id])
+
+  @@map("deposits")
+}
+
+model Currency {
+  id                 String       @id @default(uuid())
+  code               CurrencyCode @unique
+  nameAr             String       @map("name_ar")
+  nameEn             String       @map("name_en")
+  symbol             String
+  exchangeRateToBase Float        @default(1.0) @map("exchange_rate_to_base")
+  isBase             Boolean      @default(false) @map("is_base")
+  isActive           Boolean      @default(true) @map("is_active")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  @@map("currencies")
+}
+
+model ExchangeRate {
+  id            String       @id @default(uuid())
+  fromCurrency  CurrencyCode @map("from_currency")
+  toCurrency    CurrencyCode @map("to_currency")
+  rate          Float
+  effectiveDate DateTime     @default(now()) @map("effective_date")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  @@map("exchange_rates")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model Visa {
+  id             String       @id @default(uuid())
+  visaNumber     String       @unique @map("visa_number")
+  passportNumber String       @map("passport_number")
+  applicantName  String       @map("applicant_name")
+  country        String
+  visaType       String       @map("visa_type")
+  costPrice      Float        @map("cost_price")
+  sellingPrice   Float        @map("selling_price")
+  profit         Float
+  currency       CurrencyCode @default(EGP)
+  status         String       @default("APPROVED")
+  customerId     String       @map("customer_id")
+  supplierId     String?      @map("supplier_id")
+  branchId       String       @map("branch_id")
+  createdById    String       @map("created_by_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  customer Customer  @relation(fields: [customerId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@map("visas")
+}
+
+model HotelReservation {
+  id           String       @id @default(uuid())
+  bookingCode  String       @unique @map("booking_code")
+  hotelName    String       @map("hotel_name")
+  city         String
+  checkIn      DateTime     @map("check_in")
+  checkOut     DateTime     @map("check_out")
+  roomsCount   Int          @default(1) @map("rooms_count")
+  guestName    String       @map("guest_name")
+  costPrice    Float        @map("cost_price")
+  sellingPrice Float        @map("selling_price")
+  profit       Float
+  currency     CurrencyCode @default(EGP)
+  status       String       @default("CONFIRMED")
+  customerId   String       @map("customer_id")
+  supplierId   String?      @map("supplier_id")
+  branchId     String       @map("branch_id")
+  createdById  String       @map("created_by_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  customer Customer  @relation(fields: [customerId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@map("hotel_reservations")
+}
+
+model Package {
+  id             String   @id @default(uuid())
+  packageCode    String   @unique @map("package_code")
+  packageNameAr  String   @map("package_name_ar")
+  packageNameEn  String   @map("package_name_en")
+  packageType    String   @default("UMRAH") @map("package_type")
+  durationDays   Int      @map("duration_days")
+  pricePerPerson Float    @map("price_per_person")
+  costPrice      Float    @map("cost_price")
+  status         String            @default("ACTIVE")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  travelers      PackageTraveler[]
+  bookings       Booking[]
+
+  @@map("packages")
+}
+
+model PackageTraveler {
+  id         String   @id @default(uuid())
+  packageId  String   @map("package_id")
+  customerId String   @map("customer_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  package  Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, customerId])
+  @@map("package_travelers")
+}
+
+model Booking {
+  id              String        @id @default(uuid())
+  bookingNumber   String        @unique @map("booking_number")
+  packageId       String        @map("package_id")
+  customerId      String        @map("customer_id")
+  branchId        String        @map("branch_id")
+  createdById     String        @map("created_by_id")
+  bookingDate     DateTime      @default(now()) @map("booking_date")
+  totalPrice      Float         @map("total_price")
+  paidAmount      Float         @default(0.0) @map("paid_amount")
+  remainingAmount Float         @map("remaining_amount")
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  bookingStatus   String        @default("CONFIRMED") @map("booking_status")
+  notes           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  package   Package           @relation(fields: [packageId], references: [id])
+  customer  Customer          @relation(fields: [customerId], references: [id])
+  branch    Branch            @relation(fields: [branchId], references: [id])
+  createdBy User              @relation("BookingCreator", fields: [createdById], references: [id])
+  travelers BookingTraveler[]
+  payments  BookingPayment[]
+
+  @@map("bookings")
+}
+
+model BookingTraveler {
+  id             String   @id @default(uuid())
+  bookingId      String   @map("booking_id")
+  customerId     String?  @map("customer_id")
+  travelerName   String   @map("traveler_name")
+  passportNumber String?  @map("passport_number")
+  phone          String?
+  nationality    String?  @default("Egyptian")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  booking  Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@map("booking_travelers")
+}
+
+model BookingPayment {
+  id              String       @id @default(uuid())
+  bookingId       String       @map("booking_id")
+  amount          Float
+  paymentMethod   String       @default("CASH") @map("payment_method")
+  paymentDate     DateTime     @default(now()) @map("payment_date")
+  referenceNumber String?      @map("reference_number")
+  notes           String?
+  createdById     String       @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  @@map("booking_payments")
+}
+
+model SupplierTransaction {
+  id            String   @id @default(uuid())
+  supplierId    String   @map("supplier_id")
+  type          String   // PURCHASE, PAYMENT, REFUND, ADJUSTMENT
+  referenceType String   // TICKET, VISA, HOTEL, PACKAGE, MANUAL
+  referenceId   String?  @map("reference_id")
+  description   String
+  debit         Float    @default(0.0)
+  credit        Float    @default(0.0)
+  balanceAfter  Float    @map("balance_after")
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@map("supplier_transactions")
+}
+
+model SupplierPayment {
+  id              String   @id @default(uuid())
+  supplierId      String   @map("supplier_id")
+  amount          Float
+  paymentMethod   String   @default("CASH") @map("payment_method")
+  paymentDate     DateTime @default(now()) @map("payment_date")
+  referenceNumber String?  @map("reference_number")
+  notes           String?
+  createdById     String   @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  supplier    Supplier                    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  createdBy   User                        @relation("SupplierPaymentCreator", fields: [createdById], references: [id])
+  allocations SupplierPaymentAllocation[]
+
+  @@map("supplier_payments")
+}
+
+model SupplierPaymentAllocation {
+  id              String   @id @default(uuid())
+  paymentId       String   @map("payment_id")
+  ticketId        String?  @map("ticket_id")
+  allocatedAmount Float    @map("allocated_amount")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  payment SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  ticket  Ticket?          @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@map("supplier_payment_allocations")
+}
+
