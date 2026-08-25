@@ -1,11 +1,8 @@
-import { createApp } from '../src/main';
+import { createApp } from '../src/main'; // تأكد من المسار
+import { VercelRequest, VercelResponse } from '@vercel/node';
 
-let cachedHandler: any;
-
-export default async function handler(req: any, res: any) {
-  if (!cachedHandler) {
-    const app = await createApp();
-    cachedHandler = app.getHttpAdapter().getInstance();
-  }
-  return cachedHandler(req, res);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const app = await createApp();
+  const instance = app.getHttpAdapter().getInstance();
+  return instance(req, res);
 }
