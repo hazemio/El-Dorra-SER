@@ -6,29 +6,30 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 
-let app;
+let cachedApp: any;
 
 export async function createApp() {
-  if (app) return app;
+  if (cachedApp) return cachedApp;
 
-  app = await NestFactory.create(AppModule);
+  cachedApp = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix('api/v1');
+  cachedApp.setGlobalPrefix('api/v1');
 
-  app.use(helmet({ crossOriginResourcePolicy: false }));
+  cachedApp.use(helmet({ crossOriginResourcePolicy: false }));
 
-  app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'https://el-dorra-sys.vercel.app'
-    ],
+  cachedApp.enableCors({
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow all origins in production & development
+      callback(null, true);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   });
 
-  app.use(cookieParser());
+  cachedApp.use(cookieParser());
 
-  app.useGlobalPipes(
+  cachedApp.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
@@ -36,30 +37,28 @@ export async function createApp() {
     })
   );
 
-  app.useGlobalFilters(new GlobalExceptionFilter());
-
+  cachedApp.useGlobalFilters(new GlobalExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Al Dorra Travel ERP API')
-    .setDescription('Travel ERP API')
+    .setDescription('Travel ERP API Backend Services')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  const document = SwaggerModule.createDocument(cachedApp, swaggerConfig);
+  SwaggerModule.setup('api/docs', cachedApp, document);
 
+  await cachedApp.init();
 
-  await app.init();
-
-  return app;
+  return cachedApp;
 }
 
-
-// للتشغيل المحلي فقط
-if (require.main === module) {
-  createApp().then(async app => {
-    await app.listen(3000);
-    console.log('Server running on 3000');
+// Local Execution Guard (Only runs standalone server when not in Vercel Serverless Function)
+if (require.main === module || !process.env.VERCEL) {
+  createApp().then(async (app) => {
+    const port = process.env.PORT || 3000;
+    await app.listen(port);
+    console.log(`🚀 Al Dorra Travel ERP Backend listening on port ${port}`);
   });
 }

@@ -21,5 +21,6 @@
       "@/*": ["src/*"]
     }
   },
+  "include": ["src/**/*", "api/**/*"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }

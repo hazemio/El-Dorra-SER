@@ -1,14 +1,11 @@
 import { createApp } from '../src/main';
 
-let handler;
+let cachedHandler: any;
 
-export default async function(req, res) {
-
-  if (!handler) {
+export default async function handler(req: any, res: any) {
+  if (!cachedHandler) {
     const app = await createApp();
-
-    handler = app.getHttpAdapter().getInstance();
+    cachedHandler = app.getHttpAdapter().getInstance();
   }
-
-  return handler(req, res);
+  return cachedHandler(req, res);
 }
