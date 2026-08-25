@@ -14,7 +14,7 @@ async function bootstrap() {
   app.use(helmet({ crossOriginResourcePolicy: false }));
 
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173' , 'https://el-dorra-sys.vercel.app/'],
     credentials: true,
   });
 
@@ -41,8 +41,7 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`🚀 Al Dorra Travel ERP Backend is running on: http://localhost:${port}/api/v1`);
+await app.listen(process.env.PORT || 3000);  console.log(`🚀 Al Dorra Travel ERP Backend is running on: http://localhost:${port}/api/v1`);
   console.log(`📖 Swagger API Docs: http://localhost:${port}/api/docs`);
 }
 
