@@ -53,7 +53,7 @@ export async function createApp() {
     .build();
 
   const document = SwaggerModule.createDocument(cachedApp, swaggerConfig);
-  SwaggerModule.setup('api/docs', cachedApp, document);
+  SwaggerModule.setup('api/v1/docs', cachedApp, document);
 
   await cachedApp.init();
 
