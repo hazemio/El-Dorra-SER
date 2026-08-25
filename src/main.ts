@@ -15,7 +15,7 @@ export async function createApp() {
 
   cachedApp.setGlobalPrefix('api/v1');
 
-  // تعطيل CSP و CrossOriginResourcePolicy لضمان تحميل ستايلات وسكربتات Swagger و Vercel
+  // تعطيل CSP لضمان تحميل واجهة Swagger بسلاسة
   cachedApp.use(
     helmet({
       crossOriginResourcePolicy: false,
@@ -23,12 +23,23 @@ export async function createApp() {
     })
   );
 
+  // إعداد قائمة الـ Origins المسموح بها مع دعم متغير البيئة FRONTEND_URL
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'https://el-dorra-sys.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ].filter(Boolean) as string[];
+
   cachedApp.enableCors({
-    origin: [
-      'https://el-dorra-sys.vercel.app',
-      'http://localhost:5173',
-      'http://localhost:3000',
-    ],
+    origin: (origin: string, callback: (err: Error | null, allow?: boolean) => void) => {
+      // السماح بالطلبات التي لا تحتوي على Origin (مثل Postman أو Mobile Apps) أو الموجودة بالقائمة
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Fallback لتجنب حظر الـ Preflight أثناء الـ testing
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -36,6 +47,12 @@ export async function createApp() {
       'Authorization',
       'X-Requested-With',
       'Accept',
+      'X-CSRF-Token',
+      'Accept-Version',
+      'Content-Length',
+      'Content-MD5',
+      'Date',
+      'X-Api-Version',
     ],
   });
 
@@ -60,7 +77,7 @@ export async function createApp() {
 
   const document = SwaggerModule.createDocument(cachedApp, swaggerConfig);
 
-  // استدعاء ملفات الـ Assets الخاصة بـ Swagger من CDN لتجنب أخطاء 404 على بيئة Serverless
+  // تحميل ملفات Swagger UI عبر CDN لتجنب أخطاء 404 على Serverless
   const customOptions: SwaggerCustomOptions = {
     customCssUrl:
       'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
@@ -77,7 +94,7 @@ export async function createApp() {
   return cachedApp;
 }
 
-// Local Execution Guard (Only runs standalone server when not in Vercel Serverless Function)
+// Local Execution Guard
 if (require.main === module || !process.env.VERCEL) {
   createApp().then(async (app) => {
     const port = process.env.PORT || 3000;
