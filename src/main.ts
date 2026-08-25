@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { SwaggerModule, DocumentBuilder, SwaggerCustomOptions } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -15,23 +15,29 @@ export async function createApp() {
 
   cachedApp.setGlobalPrefix('api/v1');
 
-  cachedApp.use(helmet({ crossOriginResourcePolicy: false }));
+  // تعطيل CSP و CrossOriginResourcePolicy لضمان تحميل ستايلات وسكربتات Swagger و Vercel
+  cachedApp.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+      contentSecurityPolicy: false,
+    })
+  );
 
   cachedApp.enableCors({
-  origin: [
-    'https://el-dorra-sys.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:3000',
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-  ],
-});
+    origin: [
+      'https://el-dorra-sys.vercel.app',
+      'http://localhost:5173',
+      'http://localhost:3000',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+    ],
+  });
 
   cachedApp.use(cookieParser());
 
@@ -53,7 +59,18 @@ export async function createApp() {
     .build();
 
   const document = SwaggerModule.createDocument(cachedApp, swaggerConfig);
-  SwaggerModule.setup('api/v1/docs', cachedApp, document);
+
+  // استدعاء ملفات الـ Assets الخاصة بـ Swagger من CDN لتجنب أخطاء 404 على بيئة Serverless
+  const customOptions: SwaggerCustomOptions = {
+    customCssUrl:
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
+    ],
+  };
+
+  SwaggerModule.setup('api/v1/docs', cachedApp, document, customOptions);
 
   await cachedApp.init();
 
