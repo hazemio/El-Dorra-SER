@@ -153,7 +153,7 @@ export class ReportsService {
       },
     });
 
-    const customersCount = await this.prisma.customer.count({ where: { deletedAt: null } });
+    const customersCount = await this.prisma.customer.count({ where: { deletedAt: null, isArchived: false } });
 
     // Overview Totals Calculation
     const ticketRev = ticketsAgg._sum.sellingPrice || 0;

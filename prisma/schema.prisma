@@ -99,6 +99,7 @@ model User {
   supplierPaymentsCreated SupplierPayment[] @relation("SupplierPaymentCreator")
   auditLogs            AuditLog[]
   notifications        Notification[]
+  customersArchived    Customer[] @relation("CustomerArchiver")
 
   @@map("users")
 }
@@ -248,6 +249,10 @@ model Customer {
   email          String?
   balance        Float     @default(0.0)
   isActive       Boolean   @default(true) @map("is_active")
+  isArchived     Boolean   @default(false) @map("is_archived")
+  archivedAt     DateTime? @map("archived_at")
+  archivedById   String?   @map("archived_by_id")
+  archiveReason  String?   @map("archive_reason")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
@@ -259,6 +264,7 @@ model Customer {
   packageTravelers  PackageTraveler[]
   bookings          Booking[]
   bookingTravelers  BookingTraveler[]
+  archivedBy        User?             @relation("CustomerArchiver", fields: [archivedById], references: [id])
 
   @@map("customers")
 }
